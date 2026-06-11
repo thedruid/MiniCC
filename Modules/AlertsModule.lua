@@ -136,41 +136,49 @@ local function ProcessWatcherData(watcher, impSlot, defSlot, iconsEnabled, icons
 
 	-- Process important spells
 	for _, data in ipairs(importantData) do
-		if disabledSpells and data.SpellId and disabledSpells[data.SpellId] then
-			goto continueImportant
-		end
-		if iconsEnabled and impSlot < container.Count then
-			impSlot = impSlot + 1
-			slotOptionsScratch.Texture = data.SpellIcon
-			slotOptionsScratch.DurationObject = data.DurationObject
-			slotOptionsScratch.Alpha = data.IsImportant
-			slotOptionsScratch.Glow = iconsGlow
-			slotOptionsScratch.ReverseCooldown = iconsReverse
-			slotOptionsScratch.Color = color
-			slotOptionsScratch.FontScale = fontScale
-			slotOptionsScratch.SpellId = showTooltips and data.SpellId or nil
-			container:SetSlot(impSlot, slotOptionsScratch)
-		end
+		if not (disabledSpells and data.SpellId and disabledSpells[data.SpellId]) then
+			if iconsEnabled and impSlot < container.Count then
+				impSlot = impSlot + 1
+				slotOptionsScratch.Texture = data.SpellIcon
+				slotOptionsScratch.DurationObject = data.DurationObject
+				slotOptionsScratch.Alpha = data.IsImportant
+				slotOptionsScratch.Glow = iconsGlow
+				slotOptionsScratch.ReverseCooldown = iconsReverse
+				slotOptionsScratch.Color = color
+				slotOptionsScratch.FontScale = fontScale
+				slotOptionsScratch.SpellId = showTooltips and data.SpellId or nil
+				container:SetSlot(impSlot, slotOptionsScratch)
+			end
 
-		-- Track and announce new important auras
-		if data.AuraInstanceID then
-			currentImportantAuras[data.AuraInstanceID] = true
-			if not previousImportantAuras[data.AuraInstanceID] then
-				AnnounceTTS(data.SpellName, "important")
+			-- Track and announce new important auras
+			if data.AuraInstanceID then
+				currentImportantAuras[data.AuraInstanceID] = true
+				if not previousImportantAuras[data.AuraInstanceID] then
+					AnnounceTTS(data.SpellName, "important")
+				end
 			end
 		end
-		::continueImportant::
 	end
 
 	-- Process defensive spells
 	for _, data in ipairs(defensivesData) do
-		if disabledSpells and data.SpellId and disabledSpells[data.SpellId] then
-			goto continueDefensive
-		end
-		if includeDefensives and iconsEnabled then
-			if splitBars then
-				if defSlot < defensivesContainer.Count then
-					defSlot = defSlot + 1
+		if not (disabledSpells and data.SpellId and disabledSpells[data.SpellId]) then
+			if includeDefensives and iconsEnabled then
+				if splitBars then
+					if defSlot < defensivesContainer.Count then
+						defSlot = defSlot + 1
+						slotOptionsScratch.Texture = data.SpellIcon
+						slotOptionsScratch.DurationObject = data.DurationObject
+						slotOptionsScratch.Alpha = data.IsDefensive
+						slotOptionsScratch.Glow = iconsGlow
+						slotOptionsScratch.ReverseCooldown = iconsReverse
+						slotOptionsScratch.Color = color
+						slotOptionsScratch.FontScale = fontScale
+						slotOptionsScratch.SpellId = showTooltips and data.SpellId or nil
+						defensivesContainer:SetSlot(defSlot, slotOptionsScratch)
+					end
+				elseif impSlot < container.Count then
+					impSlot = impSlot + 1
 					slotOptionsScratch.Texture = data.SpellIcon
 					slotOptionsScratch.DurationObject = data.DurationObject
 					slotOptionsScratch.Alpha = data.IsDefensive
@@ -179,30 +187,18 @@ local function ProcessWatcherData(watcher, impSlot, defSlot, iconsEnabled, icons
 					slotOptionsScratch.Color = color
 					slotOptionsScratch.FontScale = fontScale
 					slotOptionsScratch.SpellId = showTooltips and data.SpellId or nil
-					defensivesContainer:SetSlot(defSlot, slotOptionsScratch)
+					container:SetSlot(impSlot, slotOptionsScratch)
 				end
-			elseif impSlot < container.Count then
-				impSlot = impSlot + 1
-				slotOptionsScratch.Texture = data.SpellIcon
-				slotOptionsScratch.DurationObject = data.DurationObject
-				slotOptionsScratch.Alpha = data.IsDefensive
-				slotOptionsScratch.Glow = iconsGlow
-				slotOptionsScratch.ReverseCooldown = iconsReverse
-				slotOptionsScratch.Color = color
-				slotOptionsScratch.FontScale = fontScale
-				slotOptionsScratch.SpellId = showTooltips and data.SpellId or nil
-				container:SetSlot(impSlot, slotOptionsScratch)
 			end
-		end
 
-		-- Track and announce new defensive auras
-		if data.AuraInstanceID then
-			currentDefensiveAuras[data.AuraInstanceID] = true
-			if not previousDefensiveAuras[data.AuraInstanceID] then
-				AnnounceTTS(data.SpellName, "defensive")
+			-- Track and announce new defensive auras
+			if data.AuraInstanceID then
+				currentDefensiveAuras[data.AuraInstanceID] = true
+				if not previousDefensiveAuras[data.AuraInstanceID] then
+					AnnounceTTS(data.SpellName, "defensive")
+				end
 			end
 		end
-		::continueDefensive::
 	end
 
 	return impSlot, defSlot

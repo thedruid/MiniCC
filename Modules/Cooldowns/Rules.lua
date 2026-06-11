@@ -294,6 +294,15 @@ local rules = {
 		},
 		[64] = { -- Frost Mage
 			{
+				BuffDuration = 20,
+				Cooldown = 120,
+				Important = true,
+				BigDefensive = false,
+				ExternalDefensive = false,
+				SpellId = 12472,
+				MinDuration = true,
+			}, -- Icy Veins
+			{
 				BuffDuration = 10,
 				Cooldown = 240,
 				BigDefensive = true,
@@ -319,6 +328,24 @@ local rules = {
 			}, -- Ice Cold (replaces Ice Block)
 		},
 		[71] = { -- Arms Warrior
+			{
+				BuffDuration = 12,
+				Cooldown = 90,
+				Important = true,
+				BigDefensive = false,
+				ExternalDefensive = false,
+				SpellId = 1719,
+				MinDuration = true,
+			}, -- Recklessness
+			{
+				BuffDuration = 6,
+				Cooldown = 60,
+				Important = true,
+				BigDefensive = false,
+				ExternalDefensive = false,
+				SpellId = 227847,
+				CanCancelEarly = true,
+			}, -- Bladestorm
 			{
 				BuffDuration = 8,
 				Cooldown = 120,
@@ -349,6 +376,15 @@ local rules = {
 			}, -- Spell Reflect
 		},
 		[72] = { -- Fury Warrior
+			{
+				BuffDuration = 12,
+				Cooldown = 90,
+				Important = true,
+				BigDefensive = false,
+				ExternalDefensive = false,
+				SpellId = 1719,
+				MinDuration = true,
+			}, -- Recklessness
 			{
 				BuffDuration = 8,
 				AlternativeDurations = { 11 }, -- Invigorating Fury (+3s)
@@ -411,7 +447,7 @@ local rules = {
 				RequiresTalent = 23920,
 			}, -- Spell Reflect
 		},
-		[251] = {
+		[251] = { -- Frost Death Knight
 			{
 				BuffDuration = 12,
 				Cooldown = 45,
@@ -420,8 +456,17 @@ local rules = {
 				ExternalDefensive = false,
 				MinDuration = true,
 				SpellId = 51271,
-			},
-		}, -- Frost Death Knight: Pillar of Frost
+			}, -- Pillar of Frost
+			{
+				BuffDuration = 10,
+				Cooldown = 120,
+				Important = true,
+				BigDefensive = false,
+				ExternalDefensive = false,
+				SpellId = 47568,
+				MaxCharges = 2,
+			}, -- Empower Rune Weapon
+		},
 		[250] = { -- Blood Death Knight
 			{
 				BuffDuration = 10,
@@ -531,7 +576,18 @@ local rules = {
 				-- Archon Sustainted Potency can increase the duration
 				MinDuration = true,
 				SpellId = 228260,
-			}, -- Voidform
+				ExcludeIfTalent = 391109,
+			}, -- Voidform (hidden if Dark Ascension talented)
+			{
+				BuffDuration = 20,
+				Cooldown = 60,
+				Important = true,
+				ExternalDefensive = false,
+				BigDefensive = false,
+				MinDuration = true,
+				SpellId = 391109,
+				RequiresTalent = 391109,
+			}, -- Dark Ascension
 			{
 				BuffDuration = 1,
 				Cooldown = 30,
@@ -545,7 +601,7 @@ local rules = {
 				PvPOnly = true,
 			}, -- Phase Shift (PvP talent)
 		},
-		[102] = {
+		[102] = { -- Balance Druid
 			{
 				BuffDuration = 20,
 				Cooldown = 180,
@@ -555,8 +611,20 @@ local rules = {
 				MinDuration = true,
 				SpellId = 102560,
 				MaxCharges = 2,
-			},
-		}, -- Balance Druid: Incarnation: Chosen of Elune
+				ExcludeIfTalent = 194223,
+			}, -- Incarnation: Chosen of Elune (hidden if Celestial Alignment talented)
+			{
+				BuffDuration = 20,
+				Cooldown = 180,
+				Important = true,
+				BigDefensive = false,
+				ExternalDefensive = false,
+				MinDuration = true,
+				SpellId = 194223,
+				RequiresTalent = 194223,
+				ExcludeIfTalent = 102560,
+			}, -- Celestial Alignment (hidden if Incarnation talented)
+		},
 		[103] = {
 			{
 				BuffDuration = 15,
@@ -671,6 +739,24 @@ local rules = {
 				SpellId = 1249625,
 			}, -- Zenith
 			{
+				BuffDuration = 15,
+				Cooldown = 90,
+				Important = true,
+				BigDefensive = false,
+				ExternalDefensive = false,
+				SpellId = 137639,
+				ExcludeIfTalent = 152173,
+			}, -- Storm, Earth, and Fire (hidden if Serenity talented)
+			{
+				BuffDuration = 12,
+				Cooldown = 90,
+				Important = true,
+				BigDefensive = false,
+				ExternalDefensive = false,
+				SpellId = 152173,
+				RequiresTalent = 152173,
+			}, -- Serenity
+			{
 				BuffDuration = 10,
 				Cooldown = 90,
 				BigDefensive = true,
@@ -683,6 +769,15 @@ local rules = {
 			}, -- Touch of Karma
 		},
 		[577] = { -- Havoc Demon Hunter
+			{
+				BuffDuration = 30,
+				Cooldown = 240,
+				Important = true,
+				BigDefensive = false,
+				ExternalDefensive = false,
+				SpellId = 162264,
+				MinDuration = true,
+			}, -- Metamorphosis
 			{
 				BuffDuration = 10,
 				Cooldown = 60,
@@ -724,6 +819,16 @@ local rules = {
 				SpellId = 187827,
 			}, -- Metamorphosis
 		},
+		[253] = { -- Beast Mastery Hunter
+			{
+				BuffDuration = 15,
+				Cooldown = 90,
+				Important = true,
+				BigDefensive = false,
+				ExternalDefensive = false,
+				SpellId = 19574,
+			}, -- Bestial Wrath
+		},
 		[254] = {
 			{
 				BuffDuration = 15,
@@ -745,6 +850,28 @@ local rules = {
 				ExternalDefensive = false,
 				SpellId = 1250646,
 			}, -- Takedown
+		},
+		[259] = { -- Assassination Rogue
+			{
+				BuffDuration = 20,
+				Cooldown = 120,
+				Important = true,
+				BigDefensive = false,
+				ExternalDefensive = false,
+				SpellId = 360194,
+				MinDuration = true,
+			}, -- Deathmark
+		},
+		[260] = { -- Outlaw Rogue
+			{
+				BuffDuration = 20,
+				Cooldown = 180,
+				Important = true,
+				BigDefensive = false,
+				ExternalDefensive = false,
+				SpellId = 13750,
+				MinDuration = true,
+			}, -- Adrenaline Rush
 		},
 		[261] = {
 			{
@@ -828,6 +955,15 @@ local rules = {
 			}, -- Burrow
 		},
 		[262] = { -- Elemental Shaman
+			{
+				BuffDuration = 15,
+				Cooldown = 60,
+				Important = true,
+				BigDefensive = false,
+				ExternalDefensive = false,
+				SpellId = 191634,
+				MinDuration = true,
+			}, -- Stormkeeper
 			{
 				BuffDuration = 15,
 				AlternativeDurations = { 18 }, -- Preeminence (+3s)
@@ -1198,16 +1334,33 @@ local offensiveSpellIds = {
 	[31884] = true, -- Avenging Wrath
 	[216331] = true, -- Avenging Crusader
 	[190319] = true, -- Combustion
+	[365350] = true, -- Arcane Surge
 	[288613] = true, -- Trueshot
 	[228260] = true, -- Voidform
+	[391109] = true, -- Dark Ascension
 	[102560] = true, -- Incarnation: Chosen of Elune (Balance)
+	[194223] = true, -- Celestial Alignment (Balance)
 	[102543] = true, -- Incarnation: Avatar of Ashamane (Feral)
 	[106951] = true, -- Berserk (Feral, same choice node as Incarnation)
 	[102558] = true, -- Incarnation: Guardian of Ursoc (Guardian)
 	[1250646] = true, -- Takedown
+	[360194] = true, -- Deathmark
+	[13750]  = true, -- Adrenaline Rush
+	[1719]   = true, -- Recklessness
+	[227847] = true, -- Bladestorm
+	[162264] = true, -- Metamorphosis (Havoc)
+	[19574]  = true, -- Bestial Wrath
+	[12472]  = true, -- Icy Veins
+	[51271]  = true, -- Pillar of Frost
+	[47568]  = true, -- Empower Rune Weapon
+	[191634] = true, -- Stormkeeper
 	[384352] = true, -- Doomwinds
 	[114051] = true, -- Ascendance (Enhancement)
 	[114050] = true, -- Ascendance (Elemental)
+	[114052] = true, -- Ascendance (Restoration)
+	[137639] = true, -- Storm, Earth, and Fire
+	[152173] = true, -- Serenity
+	[1249625] = true, -- Zenith
 }
 
 rules.OffensiveSpellIds = offensiveSpellIds
