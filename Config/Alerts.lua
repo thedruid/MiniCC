@@ -548,30 +548,28 @@ local function BuildSpellsTab(parent, options)
 			classPanels[classToken] = classPanel
 
 			-- Enable All / Disable All buttons
-			local enableAllBtn = mini:Button({
-				Parent = classPanel,
-				Text = L["Enable All"],
-				OnClick = function()
-					for _, spId in ipairs(spells) do
-						disabledSpells[spId] = nil
-					end
-					classPanel:MiniRefresh()
-				end,
-			})
+			local enableAllBtn = CreateFrame("Button", nil, classPanel, "UIPanelButtonTemplate")
+			enableAllBtn:SetSize(90, 22)
+			enableAllBtn:SetText(L["Enable All"])
 			enableAllBtn:SetPoint("TOPLEFT", classPanel, "TOPLEFT", 0, 0)
+			enableAllBtn:SetScript("OnClick", function()
+				for _, spId in ipairs(spells) do
+					disabledSpells[spId] = nil
+				end
+				if classPanel.MiniRefresh then classPanel:MiniRefresh() end
+			end)
 
-			local disableAllBtn = mini:Button({
-				Parent = classPanel,
-				Text = L["Disable All"],
-				OnClick = function()
-					for _, spId in ipairs(spells) do
-						disabledSpells[spId] = true
-					end
-					classPanel:MiniRefresh()
-				end,
-			})
+			local disableAllBtn = CreateFrame("Button", nil, classPanel, "UIPanelButtonTemplate")
+			disableAllBtn:SetSize(90, 22)
+			disableAllBtn:SetText(L["Disable All"])
 			disableAllBtn:SetPoint("LEFT", enableAllBtn, "RIGHT", horizontalSpacing, 0)
 			disableAllBtn:SetPoint("TOP", enableAllBtn, "TOP", 0, 0)
+			disableAllBtn:SetScript("OnClick", function()
+				for _, spId in ipairs(spells) do
+					disabledSpells[spId] = true
+				end
+				if classPanel.MiniRefresh then classPanel:MiniRefresh() end
+			end)
 
 			local y = -(rowH + verticalSpacing)
 			for _, spellId in ipairs(spells) do
