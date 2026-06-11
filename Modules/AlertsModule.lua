@@ -100,7 +100,7 @@ local function AnnounceTTS(spellName, spellType)
 	end)
 end
 
-local function ProcessWatcherData(watcher, impSlot, defSlot, iconsEnabled, iconsGlow, iconsReverse, colorByClass, includeDefensives, showTooltips, splitBars)
+local function ProcessWatcherData(watcher, impSlot, defSlot, iconsEnabled, iconsGlow, iconsReverse, colorByClass, includeDefensives, showTooltips, splitBars, disabledSpells)
 	local unit = watcher:GetUnit()
 
 	-- when units go stealth, we can't get their aura data anymore
@@ -136,6 +136,9 @@ local function ProcessWatcherData(watcher, impSlot, defSlot, iconsEnabled, icons
 
 	-- Process important spells
 	for _, data in ipairs(importantData) do
+		if disabledSpells and data.SpellId and disabledSpells[data.SpellId] then
+			goto continueImportant
+		end
 		if iconsEnabled and impSlot < container.Count then
 			impSlot = impSlot + 1
 			slotOptionsScratch.Texture = data.SpellIcon
@@ -156,10 +159,14 @@ local function ProcessWatcherData(watcher, impSlot, defSlot, iconsEnabled, icons
 				AnnounceTTS(data.SpellName, "important")
 			end
 		end
+		::continueImportant::
 	end
 
 	-- Process defensive spells
 	for _, data in ipairs(defensivesData) do
+		if disabledSpells and data.SpellId and disabledSpells[data.SpellId] then
+			goto continueDefensive
+		end
 		if includeDefensives and iconsEnabled then
 			if splitBars then
 				if defSlot < defensivesContainer.Count then
@@ -195,6 +202,7 @@ local function ProcessWatcherData(watcher, impSlot, defSlot, iconsEnabled, icons
 				AnnounceTTS(data.SpellName, "defensive")
 			end
 		end
+		::continueDefensive::
 	end
 
 	return impSlot, defSlot
@@ -225,6 +233,7 @@ local function OnAuraDataChanged()
 	local includeDefensives = db.Modules.AlertsModule.IncludeDefensives
 	local splitBars = db.Modules.AlertsModule.SplitBars and includeDefensives
 	local showTooltips = db.Modules.AlertsModule.ShowTooltips ~= false
+	local disabledSpells = db.Modules.AlertsModule.DisabledSpells
 	local impSlot = 0
 	local defSlot = 0
 	local hasImportantAlerts
@@ -247,7 +256,8 @@ local function OnAuraDataChanged()
 				colorByClass,
 				includeDefensives,
 				showTooltips,
-				splitBars
+				splitBars,
+				disabledSpells
 			)
 		end
 	end
@@ -270,7 +280,8 @@ local function OnAuraDataChanged()
 						colorByClass,
 						includeDefensives,
 						showTooltips,
-						splitBars
+						splitBars,
+						disabledSpells
 					)
 				end
 			end
@@ -287,7 +298,8 @@ local function OnAuraDataChanged()
 					colorByClass,
 					includeDefensives,
 					showTooltips,
-					splitBars
+					splitBars,
+					disabledSpells
 				)
 			end
 		end

@@ -8,7 +8,7 @@ local L = addon.L
 ---@field TalentCache table<string, {SpecId: number, TalentString: string, Time: number}>
 ---@field PvPTalentCache table<string, {Ids: number[], Time: number}>
 local dbDefaults = {
-	Version = 47,
+	Version = 48,
 	Profiles = {},
 	ActiveProfile = "Default",
 	AutoSwitch = {},
@@ -230,6 +230,7 @@ local dbDefaults = {
 			},
 
 			ShowTooltips = false,
+			DisabledSpells = {},
 		},
 		---@class NameplateModuleOptions
 		NameplatesModule = {
@@ -2327,6 +2328,19 @@ function M:UpgradeToVersion47(vars)
 	return true
 end
 
+function M:UpgradeToVersion48(vars)
+	if vars.Version ~= 47 then return false end
+
+	-- Add DisabledSpells to AlertsModule (new per-spell alert filter feature).
+	local am = vars.Modules and vars.Modules.AlertsModule
+	if am and am.DisabledSpells == nil then
+		am.DisabledSpells = {}
+	end
+
+	vars.Version = 48
+	return true
+end
+
 ---@return boolean true if any deferred migrations were applied
 function M:RunDeferredMigrations(vars)
 	local applied = false
@@ -2373,6 +2387,8 @@ local function SaveOpaqueCaches(vars)
 	saved._FcdDisabledSpells = fcdModule and mini:CopyValueOrTable(fcdModule.DisabledSpells) or {}
 	local ecdModule = vars.Modules and vars.Modules.EnemyCooldownTrackerModule
 	saved._EcdDisabledSpells = ecdModule and mini:CopyValueOrTable(ecdModule.DisabledSpells) or {}
+	local alertsModule = vars.Modules and vars.Modules.AlertsModule
+	saved._AlertsDisabledSpells = alertsModule and mini:CopyValueOrTable(alertsModule.DisabledSpells) or {}
 	return saved
 end
 
@@ -2387,6 +2403,10 @@ local function RestoreOpaqueCaches(vars, saved)
 	local ecdModule = vars.Modules and vars.Modules.EnemyCooldownTrackerModule
 	if ecdModule then
 		ecdModule.DisabledSpells = saved._EcdDisabledSpells or {}
+	end
+	local alertsModule = vars.Modules and vars.Modules.AlertsModule
+	if alertsModule then
+		alertsModule.DisabledSpells = saved._AlertsDisabledSpells or {}
 	end
 end
 

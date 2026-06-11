@@ -3,12 +3,65 @@ local _, addon = ...
 local mini = addon.Core.Framework
 local L = addon.L
 local wowEx = addon.Utils.WoWEx
+local rules = addon.Modules.Cooldowns.Rules
 local verticalSpacing = mini.VerticalSpacing
 local horizontalSpacing = mini.HorizontalSpacing
 local columns = 4
 local columnWidth
 local enabledColumnWidth
 local config = addon.Config
+
+local classOrder = {
+	"DEATHKNIGHT", "DEMONHUNTER", "DRUID", "EVOKER", "HUNTER",
+	"MAGE", "MONK", "PALADIN", "PRIEST", "ROGUE",
+	"SHAMAN", "WARLOCK", "WARRIOR",
+}
+
+local specClass = {
+	[250]  = "DEATHKNIGHT", [251]  = "DEATHKNIGHT", [252]  = "DEATHKNIGHT",
+	[577]  = "DEMONHUNTER", [581]  = "DEMONHUNTER", [1480] = "DEMONHUNTER",
+	[102]  = "DRUID",       [103]  = "DRUID",        [104]  = "DRUID",       [105] = "DRUID",
+	[1467] = "EVOKER",      [1468] = "EVOKER",       [1473] = "EVOKER",
+	[253]  = "HUNTER",      [254]  = "HUNTER",       [255]  = "HUNTER",
+	[62]   = "MAGE",        [63]   = "MAGE",         [64]   = "MAGE",
+	[268]  = "MONK",        [269]  = "MONK",         [270]  = "MONK",
+	[65]   = "PALADIN",     [66]   = "PALADIN",      [70]   = "PALADIN",
+	[256]  = "PRIEST",      [257]  = "PRIEST",       [258]  = "PRIEST",
+	[259]  = "ROGUE",       [260]  = "ROGUE",        [261]  = "ROGUE",
+	[262]  = "SHAMAN",      [263]  = "SHAMAN",       [264]  = "SHAMAN",
+	[265]  = "WARLOCK",     [266]  = "WARLOCK",      [267]  = "WARLOCK",
+	[71]   = "WARRIOR",     [72]   = "WARRIOR",      [73]   = "WARRIOR",
+}
+
+local function CollectAlertSpellsByClass()
+	local classSpells = {}
+	local seen = {}
+
+	local function addSpell(classToken, spellId, rule)
+		if not spellId or seen[spellId] then return end
+		if not (rule.Important or rule.BigDefensive or rule.ExternalDefensive) then return end
+		seen[spellId] = true
+		classSpells[classToken] = classSpells[classToken] or {}
+		table.insert(classSpells[classToken], spellId)
+	end
+
+	for specId, ruleList in pairs(rules.BySpec) do
+		local classToken = specClass[specId]
+		if classToken then
+			for _, rule in ipairs(ruleList) do
+				addSpell(classToken, rule.SpellId, rule)
+			end
+		end
+	end
+
+	for classToken, ruleList in pairs(rules.ByClass) do
+		for _, rule in ipairs(ruleList) do
+			addSpell(classToken, rule.SpellId, rule)
+		end
+	end
+
+	return classSpells
+end
 
 ---@class AlertsConfig
 local M = {}
@@ -456,6 +509,175 @@ local function BuildTtsTab(parent, options)
 	speechRateSlider.Slider:SetPoint("TOP", volumeSlider.Slider, "TOP", 0, 0)
 end
 
+---@param parent table
+---@param options AlertsModuleOptions
+local function BuildSpellsTab(parent, options)
+	local disabledSpells = options.DisabledSpells
+	local classSpells = CollectAlertSpellsByClass()
+
+	local nameCounts = {}
+	for _, classToken in ipairs(classOrder) do
+		local spells = classSpells[classToken]
+		if spells then
+			for _, spellId in ipairs(spells) do
+				local name = C_Spell.GetSpellName(spellId)
+				if name then nameCounts[name] = (nameCounts[name] or 0) + 1 end
+			end
+		end
+	end
+
+	local sidebarW   = 120
+	local sidebarSep = 8
+	local rowH       = 26
+	local iconSz     = 18
+
+	local sidebar = CreateFrame("Frame", nil, parent)
+	sidebar:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, 0)
+	sidebar:SetWidth(sidebarW)
+
+	local classPanels = {}
+	local contentOffsetX = sidebarW + sidebarSep
+
+	for _, classToken in ipairs(classOrder) do
+		local spells = classSpells[classToken]
+		if spells and #spells > 0 then
+			local classPanel = CreateFrame("Frame", nil, parent)
+			classPanel:SetPoint("TOPLEFT",  parent, "TOPLEFT",  contentOffsetX, 0)
+			classPanel:SetPoint("TOPRIGHT", parent, "TOPRIGHT", 0, 0)
+			classPanel:Hide()
+			classPanels[classToken] = classPanel
+
+			-- Enable All / Disable All buttons
+			local enableAllBtn = mini:Button({
+				Parent = classPanel,
+				Text = L["Enable All"],
+				OnClick = function()
+					for _, spId in ipairs(spells) do
+						disabledSpells[spId] = nil
+					end
+					classPanel:MiniRefresh()
+				end,
+			})
+			enableAllBtn:SetPoint("TOPLEFT", classPanel, "TOPLEFT", 0, 0)
+
+			local disableAllBtn = mini:Button({
+				Parent = classPanel,
+				Text = L["Disable All"],
+				OnClick = function()
+					for _, spId in ipairs(spells) do
+						disabledSpells[spId] = true
+					end
+					classPanel:MiniRefresh()
+				end,
+			})
+			disableAllBtn:SetPoint("LEFT", enableAllBtn, "RIGHT", horizontalSpacing, 0)
+			disableAllBtn:SetPoint("TOP", enableAllBtn, "TOP", 0, 0)
+
+			local y = -(rowH + verticalSpacing)
+			for _, spellId in ipairs(spells) do
+				local spellName = C_Spell.GetSpellName(spellId) or ("Spell #" .. spellId)
+				if nameCounts[spellName] and nameCounts[spellName] > 1 then
+					spellName = spellName .. " (" .. spellId .. ")"
+				end
+				local texture = C_Spell.GetSpellTexture(spellId)
+
+				local chk = mini:Checkbox({
+					Parent    = classPanel,
+					LabelText = spellName,
+					GetValue  = function() return not disabledSpells[spellId] end,
+					SetValue  = function(value)
+						if value then
+							disabledSpells[spellId] = nil
+						else
+							disabledSpells[spellId] = true
+						end
+					end,
+				})
+				chk:SetPoint("TOPLEFT", classPanel, "TOPLEFT", 26, y)
+
+				if texture then
+					local iconBtn = CreateFrame("Button", nil, classPanel)
+					iconBtn:SetSize(iconSz, iconSz)
+					iconBtn:SetPoint("RIGHT", chk, "LEFT", -2, 0)
+					iconBtn:SetScript("OnEnter", function(self)
+						GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+						GameTooltip:SetSpellByID(spellId)
+						GameTooltip:Show()
+					end)
+					iconBtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
+					local icon = iconBtn:CreateTexture(nil, "ARTWORK")
+					icon:SetAllPoints()
+					icon:SetTexture(texture)
+					icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+				end
+
+				y = y - rowH
+			end
+
+			local h = -y
+			classPanel:SetHeight(h)
+		end
+	end
+
+	-- Build vertical class tab buttons
+	local classTabBtns = {}
+	local classTabH    = 24
+	local classTabGap  = 1
+	local classDisplayNames = LocalizedClassList()
+
+	local function SetClassTabSelected(entry, selected)
+		if selected then
+			entry.btn:SetAlpha(1.0)
+		else
+			entry.btn:SetAlpha(0.5)
+		end
+	end
+
+	local firstClassToken
+	local tabY = 0
+	for _, classToken in ipairs(classOrder) do
+		local spells = classSpells[classToken]
+		if spells and #spells > 0 then
+			if not firstClassToken then firstClassToken = classToken end
+
+			local displayName = classDisplayNames[classToken] or classToken
+			local btn = CreateFrame("Button", nil, sidebar)
+			btn:SetHeight(classTabH)
+			btn:SetPoint("TOPLEFT", sidebar, "TOPLEFT", 0, tabY)
+			btn:SetPoint("TOPRIGHT", sidebar, "TOPRIGHT", 0, tabY)
+
+			local label = btn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+			label:SetAllPoints()
+			label:SetJustifyH("LEFT")
+			label:SetText(displayName)
+
+			local entry = { classToken = classToken, btn = btn, panel = classPanels[classToken] }
+			classTabBtns[#classTabBtns + 1] = entry
+
+			btn:SetScript("OnClick", function()
+				for _, e in ipairs(classTabBtns) do
+					e.panel:Hide()
+					SetClassTabSelected(e, false)
+				end
+				entry.panel:Show()
+				SetClassTabSelected(entry, true)
+			end)
+
+			tabY = tabY - (classTabH + classTabGap)
+		end
+	end
+
+	sidebar:SetHeight(-tabY)
+
+	-- Show the first class by default
+	if firstClassToken and classPanels[firstClassToken] then
+		classPanels[firstClassToken]:Show()
+		for _, e in ipairs(classTabBtns) do
+			SetClassTabSelected(e, e.classToken == firstClassToken)
+		end
+	end
+end
+
 ---@param panel table
 ---@param options AlertsModuleOptions
 function M:Build(panel, options)
@@ -575,6 +797,7 @@ function M:Build(panel, options)
 			{ Key = "settings", Title = L["Settings"] },
 			{ Key = "sounds",   Title = L["Sound Alerts"] },
 			{ Key = "tts",      Title = L["TTS"] },
+			{ Key = "spells",   Title = L["Spells"] },
 		},
 	})
 
@@ -586,6 +809,9 @@ function M:Build(panel, options)
 
 	local ttsContent = tabCtrl:GetContent("tts")
 	BuildTtsTab(ttsContent, options)
+
+	local spellsContent = tabCtrl:GetContent("spells")
+	BuildSpellsTab(spellsContent, options)
 
 	panel:HookScript("OnShow", function()
 		panel:MiniRefresh()
