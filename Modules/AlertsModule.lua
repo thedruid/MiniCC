@@ -14,8 +14,8 @@ local eventsFrame
 local soundFile
 ---@type Db
 local db
--- ECD module reference; set in Init() after ECD Module has loaded.
-local ecdModule
+-- Brain reference for offline spell prediction; set in Init() after Brain has loaded.
+local fcdBrain
 
 ---@type table<number, boolean>
 local previousImportantAuras = {}
@@ -26,10 +26,6 @@ local previousDefensiveAuras = {}
 local currentImportantAuras = {}
 ---@type table<number, boolean>
 local currentDefensiveAuras = {}
--- Tracks ECD-predicted auras separately (keyed by SpellId.."_"..floor(StartTime)).
--- Needed because these don't have AuraInstanceIDs; sound plays on first appearance.
-local previousEcdAuras = {}
-local currentEcdAuras  = {}
 -- Scratch table reused for every SetSlot call in ProcessWatcherData
 local slotOptionsScratch = {}
 -- Scratch table reused for every class-color lookup in ProcessWatcherData
@@ -142,66 +138,98 @@ local function ProcessWatcherData(watcher, impSlot, defSlot, iconsEnabled, icons
 
 	-- Process important spells
 	for _, data in ipairs(importantData) do
-		if not (disabledSpells and data.SpellId and disabledSpells[data.SpellId]) then
-			if iconsEnabled and impSlot < container.Count then
-				impSlot = impSlot + 1
-				slotOptionsScratch.Texture = data.SpellIcon
-				slotOptionsScratch.DurationObject = data.DurationObject
-				slotOptionsScratch.Alpha = data.IsImportant
-				slotOptionsScratch.Glow = iconsGlow
-				slotOptionsScratch.ReverseCooldown = iconsReverse
-				slotOptionsScratch.Color = color
-				slotOptionsScratch.FontScale = fontScale
-				slotOptionsScratch.SpellId = showTooltips and data.SpellId or nil
-				container:SetSlot(impSlot, slotOptionsScratch)
+		-- SpellId can be a secret value for HELPFUL|IMPORTANT enemy auras in 12.0.5;
+		-- guard before using it as a table key.
+		local spellIdUsable = data.SpellId and not issecretvalue(data.SpellId)
+		if not (disabledSpells and spellIdUsable and disabledSpells[data.SpellId]) then
+			-- Resolve texture and spell identity. Icons returned by HELPFUL|IMPORTANT for enemy
+			-- offensive CDs are secret values in 12.0.5; passing them to SetTexture raises a
+			-- protected-value error that silently kills the entire timer callback.  Predict the
+			-- real spell via Brain so we can display a proper icon.
+			local texture  = data.SpellIcon
+			local resolvedSpellId = spellIdUsable and data.SpellId or nil
+			local resolvedName    = data.SpellName and not issecretvalue(data.SpellName) and data.SpellName or nil
+
+			if issecretvalue(texture) then
+				texture = nil
+				if fcdBrain then
+					local predId = fcdBrain:PredictSpellId(unit, { IMPORTANT = true }, {}, nil)
+					if predId then
+						resolvedSpellId = predId
+						texture         = C_Spell.GetSpellTexture(predId)
+						resolvedName    = resolvedName or C_Spell.GetSpellName(predId)
+					end
+				end
 			end
 
-			-- Track and announce new important auras
+			-- Track and announce new important auras BEFORE icon display so sound/TTS
+			-- fires even if the SetSlot call below were somehow to fail.
 			if data.AuraInstanceID then
 				currentImportantAuras[data.AuraInstanceID] = true
 				if not previousImportantAuras[data.AuraInstanceID] then
-					AnnounceTTS(data.SpellName, "important")
+					AnnounceTTS(resolvedName, "important")
 				end
+			end
+
+			if texture and iconsEnabled and impSlot < container.Count then
+				impSlot = impSlot + 1
+				slotOptionsScratch.Texture        = texture
+				slotOptionsScratch.DurationObject  = data.DurationObject
+				slotOptionsScratch.Alpha           = data.IsImportant
+				slotOptionsScratch.Glow            = iconsGlow
+				slotOptionsScratch.ReverseCooldown = iconsReverse
+				slotOptionsScratch.Color           = color
+				slotOptionsScratch.FontScale       = fontScale
+				slotOptionsScratch.SpellId         = showTooltips and resolvedSpellId or nil
+				container:SetSlot(impSlot, slotOptionsScratch)
 			end
 		end
 	end
 
 	-- Process defensive spells
 	for _, data in ipairs(defensivesData) do
-		if not (disabledSpells and data.SpellId and disabledSpells[data.SpellId]) then
-			if includeDefensives and iconsEnabled then
+		local spellIdUsable = data.SpellId and not issecretvalue(data.SpellId)
+		if not (disabledSpells and spellIdUsable and disabledSpells[data.SpellId]) then
+			local texture         = data.SpellIcon
+			local resolvedSpellId = spellIdUsable and data.SpellId or nil
+			local resolvedName    = data.SpellName and not issecretvalue(data.SpellName) and data.SpellName or nil
+
+			-- BIG_DEFENSIVE icons are normally real values; guard just in case.
+			if issecretvalue(texture) then texture = nil end
+
+			-- Track and announce before icon display (crash-safe ordering).
+			if data.AuraInstanceID then
+				currentDefensiveAuras[data.AuraInstanceID] = true
+				if not previousDefensiveAuras[data.AuraInstanceID] then
+					AnnounceTTS(resolvedName, "defensive")
+				end
+			end
+
+			if texture and includeDefensives and iconsEnabled then
 				if splitBars then
 					if defSlot < defensivesContainer.Count then
 						defSlot = defSlot + 1
-						slotOptionsScratch.Texture = data.SpellIcon
-						slotOptionsScratch.DurationObject = data.DurationObject
-						slotOptionsScratch.Alpha = data.IsDefensive
-						slotOptionsScratch.Glow = iconsGlow
+						slotOptionsScratch.Texture        = texture
+						slotOptionsScratch.DurationObject  = data.DurationObject
+						slotOptionsScratch.Alpha           = data.IsDefensive
+						slotOptionsScratch.Glow            = iconsGlow
 						slotOptionsScratch.ReverseCooldown = iconsReverse
-						slotOptionsScratch.Color = color
-						slotOptionsScratch.FontScale = fontScale
-						slotOptionsScratch.SpellId = showTooltips and data.SpellId or nil
+						slotOptionsScratch.Color           = color
+						slotOptionsScratch.FontScale       = fontScale
+						slotOptionsScratch.SpellId         = showTooltips and resolvedSpellId or nil
 						defensivesContainer:SetSlot(defSlot, slotOptionsScratch)
 					end
 				elseif impSlot < container.Count then
 					impSlot = impSlot + 1
-					slotOptionsScratch.Texture = data.SpellIcon
-					slotOptionsScratch.DurationObject = data.DurationObject
-					slotOptionsScratch.Alpha = data.IsDefensive
-					slotOptionsScratch.Glow = iconsGlow
+					slotOptionsScratch.Texture        = texture
+					slotOptionsScratch.DurationObject  = data.DurationObject
+					slotOptionsScratch.Alpha           = data.IsDefensive
+					slotOptionsScratch.Glow            = iconsGlow
 					slotOptionsScratch.ReverseCooldown = iconsReverse
-					slotOptionsScratch.Color = color
-					slotOptionsScratch.FontScale = fontScale
-					slotOptionsScratch.SpellId = showTooltips and data.SpellId or nil
+					slotOptionsScratch.Color           = color
+					slotOptionsScratch.FontScale       = fontScale
+					slotOptionsScratch.SpellId         = showTooltips and resolvedSpellId or nil
 					container:SetSlot(impSlot, slotOptionsScratch)
-				end
-			end
-
-			-- Track and announce new defensive auras
-			if data.AuraInstanceID then
-				currentDefensiveAuras[data.AuraInstanceID] = true
-				if not previousDefensiveAuras[data.AuraInstanceID] then
-					AnnounceTTS(data.SpellName, "defensive")
 				end
 			end
 		end
@@ -210,48 +238,6 @@ local function ProcessWatcherData(watcher, impSlot, defSlot, iconsEnabled, icons
 	return impSlot, defSlot
 end
 
----Shows icons for ECD-predicted auras that HELPFUL|IMPORTANT missed.
----Only called when in arena and ecdModule is available.
----@return number impSlot updated slot counter
-local function ProcessEcdTrackedAuras(impSlot, iconsEnabled, iconsGlow, iconsReverse, colorByClass, showTooltips, disabledSpells)
-	local activeAuras = ecdModule:GetActiveTrackedAuras()
-	for _, data in ipairs(activeAuras) do
-		local spellId = data.SpellId
-		if not (disabledSpells and spellId and disabledSpells[spellId]) then
-			local key = spellId .. "_" .. math.floor(data.StartTime)
-			currentEcdAuras[key] = true
-
-			if iconsEnabled and impSlot < container.Count then
-				local color = nil
-				if colorByClass then
-					local _, class = UnitClass(data.Unit)
-					if class then
-						local classColor = RAID_CLASS_COLORS and RAID_CLASS_COLORS[class]
-						if classColor then
-							color = { r = classColor.r, g = classColor.g, b = classColor.b, a = 1 }
-						end
-					end
-				end
-				impSlot = impSlot + 1
-				container:SetSlot(impSlot, {
-					Texture        = C_Spell.GetSpellTexture(spellId),
-					DurationObject = data.DurationObject,
-					Alpha          = true,
-					Glow           = iconsGlow,
-					ReverseCooldown = iconsReverse,
-					Color          = color,
-					FontScale      = db.FontScale,
-					SpellId        = showTooltips and spellId or nil,
-				})
-			end
-
-			if not previousEcdAuras[key] then
-				AnnounceTTS(C_Spell.GetSpellName(spellId), "important")
-			end
-		end
-	end
-	return impSlot
-end
 
 local function OnAuraDataChanged()
 	if paused then
@@ -287,7 +273,6 @@ local function OnAuraDataChanged()
 
 	wipe(currentImportantAuras)
 	wipe(currentDefensiveAuras)
-	wipe(currentEcdAuras)
 
 	-- Process arena watchers
 	if instanceType == "arena" then
@@ -305,10 +290,6 @@ local function OnAuraDataChanged()
 				splitBars,
 				disabledSpells
 			)
-		end
-		-- Also show ECD-predicted spells (covers offensive CDs that HELPFUL|IMPORTANT misses).
-		if ecdModule then
-			impSlot = ProcessEcdTrackedAuras(impSlot, iconsEnabled, iconsGlow, iconsReverse, colorByClass, showTooltips, disabledSpells)
 		end
 	end
 
@@ -356,7 +337,7 @@ local function OnAuraDataChanged()
 	end
 
 	-- Check if we have alerts for sound playback
-	hasImportantAlerts = next(currentImportantAuras) ~= nil or next(currentEcdAuras) ~= nil
+	hasImportantAlerts = next(currentImportantAuras) ~= nil
 	hasDefensiveAlerts = next(currentDefensiveAuras) ~= nil
 
 	-- Play sound only when transitioning from no alerts to having alerts for each type
@@ -375,7 +356,6 @@ local function OnAuraDataChanged()
 	-- (which will be wiped at the top of the next call)
 	previousImportantAuras, currentImportantAuras = currentImportantAuras, previousImportantAuras
 	previousDefensiveAuras, currentDefensiveAuras = currentDefensiveAuras, previousDefensiveAuras
-	previousEcdAuras, currentEcdAuras = currentEcdAuras, previousEcdAuras
 
 	-- If icons are disabled, keep sounds/TTS logic but don't show anything.
 	if not iconsEnabled then
@@ -463,8 +443,6 @@ local function OnMatchStateChanged()
 	hadDefensiveAlerts = false
 	previousImportantAuras = {}
 	previousDefensiveAuras = {}
-	previousEcdAuras = {}
-	currentEcdAuras  = {}
 end
 
 local function RefreshTestAlerts()
@@ -708,8 +686,6 @@ local function DisableWatchers()
 	hadDefensiveAlerts = false
 	previousImportantAuras = {}
 	previousDefensiveAuras = {}
-	previousEcdAuras = {}
-	currentEcdAuras  = {}
 end
 
 local function EnableDisable()
@@ -943,11 +919,7 @@ function M:Init()
 	InitArenaWatchers()
 	InitTargetFocusWatchers()
 
-	-- ECD loads after AlertsModule in the TOC, so the reference is available at Init time.
-	ecdModule = addon.Modules.EnemyCooldowns and addon.Modules.EnemyCooldowns.Module
-	if ecdModule then
-		ecdModule:RegisterAlertCallback(ScheduleAuraDataUpdate)
-	end
+	fcdBrain = addon.Modules.Cooldowns and addon.Modules.Cooldowns.Brain
 
 	eventsFrame = CreateFrame("Frame")
 	eventsFrame:RegisterEvent("PVP_MATCH_STATE_CHANGED")
