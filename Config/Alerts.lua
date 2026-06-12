@@ -530,9 +530,22 @@ local function BuildSpellsTab(parent, options)
 	local sidebarSep = 8
 	local rowH       = 26
 	local iconSz     = 18
+	local headerH    = 28
+
+	-- Global reset button at the top
+	local resetAllBtn = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
+	resetAllBtn:SetSize(130, 22)
+	resetAllBtn:SetText(L["Enable All Spells"])
+	resetAllBtn:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, 0)
+	resetAllBtn:SetScript("OnClick", function()
+		for k in pairs(disabledSpells) do
+			disabledSpells[k] = nil
+		end
+		parent:MiniRefresh()
+	end)
 
 	local sidebar = CreateFrame("Frame", nil, parent)
-	sidebar:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, 0)
+	sidebar:SetPoint("TOPLEFT", parent, "TOPLEFT", 0, -headerH)
 	sidebar:SetWidth(sidebarW)
 
 	local classPanels = {}
@@ -542,7 +555,7 @@ local function BuildSpellsTab(parent, options)
 		local spells = classSpells[classToken]
 		if spells and #spells > 0 then
 			local classPanel = CreateFrame("Frame", nil, parent)
-			classPanel:SetPoint("TOPLEFT",  parent, "TOPLEFT",  contentOffsetX, 0)
+			classPanel:SetPoint("TOPLEFT",  parent, "TOPLEFT",  contentOffsetX, -headerH)
 			classPanel:SetPoint("TOPRIGHT", parent, "TOPRIGHT", 0, 0)
 			classPanel:Hide()
 			classPanels[classToken] = classPanel

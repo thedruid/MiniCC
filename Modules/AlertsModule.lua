@@ -229,7 +229,7 @@ local function OnAuraDataChanged()
 	local includeDefensives = db.Modules.AlertsModule.IncludeDefensives
 	local splitBars = db.Modules.AlertsModule.SplitBars and includeDefensives
 	local showTooltips = db.Modules.AlertsModule.ShowTooltips ~= false
-	local disabledSpells = db.Modules.AlertsModule.DisabledSpells
+	local disabledSpells = db.Modules.AlertsModule.DisabledSpells or {}
 	local impSlot = 0
 	local defSlot = 0
 	local hasImportantAlerts
