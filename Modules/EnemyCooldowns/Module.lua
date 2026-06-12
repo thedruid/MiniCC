@@ -27,6 +27,7 @@ local testModeActive = false
 local editModeActive = false
 local observersEnabled = false  -- true once EnableAll() has been called; prevents redundant ForceFullUpdate on every Refresh
 local eventsFrame
+local alertCallbacks = {}
 ---@type Db
 local db
 
@@ -465,6 +466,7 @@ local function TrackNewAura(entry, trackedAuras, id, info, now)
 				tracked.PredictedSpellId = predRule.SpellId
 				CommitCooldown(predEntry, tracked, predRule, 0)
 				TriggerDisplayUpdate(predEntry)
+				for _, fn in ipairs(alertCallbacks) do fn() end
 			end
 		end
 	end)
@@ -757,6 +759,35 @@ local function ClearAllCooldownState()
 end
 
 -- Module interface
+
+---Registers a callback fired when ECD makes a new spell prediction (0.15 s after an aura appears).
+---Used by AlertsModule so it can re-draw the alerts container once the predicted SpellId is known.
+---@param fn fun()
+function M:RegisterAlertCallback(fn)
+	alertCallbacks[#alertCallbacks + 1] = fn
+end
+
+---Returns all currently-active auras that ECD has matched to a specific spell via prediction.
+---AlertsModule queries this to show icons for offensive CDs that HELPFUL|IMPORTANT misses.
+---@return {Unit:string, SpellId:number, DurationObject:table?, AuraTypes:table, StartTime:number}[]
+function M:GetActiveTrackedAuras()
+	local result = {}
+	for unit, entry in pairs(watchEntries) do
+		for _, tracked in pairs(entry.TrackedAuras) do
+			local spellId = tracked.PredictedSpellId
+			if spellId then
+				result[#result + 1] = {
+					Unit           = unit,
+					SpellId        = spellId,
+					DurationObject = tracked.DurationObject,
+					AuraTypes      = tracked.AuraTypes,
+					StartTime      = tracked.StartTime,
+				}
+			end
+		end
+	end
+	return result
+end
 
 function M:Refresh()
 	local options = GetOptions()

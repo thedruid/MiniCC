@@ -14,6 +14,8 @@ local eventsFrame
 local soundFile
 ---@type Db
 local db
+-- ECD module reference; set in Init() after ECD Module has loaded.
+local ecdModule
 
 ---@type table<number, boolean>
 local previousImportantAuras = {}
@@ -24,6 +26,10 @@ local previousDefensiveAuras = {}
 local currentImportantAuras = {}
 ---@type table<number, boolean>
 local currentDefensiveAuras = {}
+-- Tracks ECD-predicted auras separately (keyed by SpellId.."_"..floor(StartTime)).
+-- Needed because these don't have AuraInstanceIDs; sound plays on first appearance.
+local previousEcdAuras = {}
+local currentEcdAuras  = {}
 -- Scratch table reused for every SetSlot call in ProcessWatcherData
 local slotOptionsScratch = {}
 -- Scratch table reused for every class-color lookup in ProcessWatcherData
@@ -204,6 +210,49 @@ local function ProcessWatcherData(watcher, impSlot, defSlot, iconsEnabled, icons
 	return impSlot, defSlot
 end
 
+---Shows icons for ECD-predicted auras that HELPFUL|IMPORTANT missed.
+---Only called when in arena and ecdModule is available.
+---@return number impSlot updated slot counter
+local function ProcessEcdTrackedAuras(impSlot, iconsEnabled, iconsGlow, iconsReverse, colorByClass, showTooltips, disabledSpells)
+	local activeAuras = ecdModule:GetActiveTrackedAuras()
+	for _, data in ipairs(activeAuras) do
+		local spellId = data.SpellId
+		if not (disabledSpells and spellId and disabledSpells[spellId]) then
+			local key = spellId .. "_" .. math.floor(data.StartTime)
+			currentEcdAuras[key] = true
+
+			if iconsEnabled and impSlot < container.Count then
+				local color = nil
+				if colorByClass then
+					local _, class = UnitClass(data.Unit)
+					if class then
+						local classColor = RAID_CLASS_COLORS and RAID_CLASS_COLORS[class]
+						if classColor then
+							color = { r = classColor.r, g = classColor.g, b = classColor.b, a = 1 }
+						end
+					end
+				end
+				impSlot = impSlot + 1
+				container:SetSlot(impSlot, {
+					Texture        = C_Spell.GetSpellTexture(spellId),
+					DurationObject = data.DurationObject,
+					Alpha          = true,
+					Glow           = iconsGlow,
+					ReverseCooldown = iconsReverse,
+					Color          = color,
+					FontScale      = db.FontScale,
+					SpellId        = showTooltips and spellId or nil,
+				})
+			end
+
+			if not previousEcdAuras[key] then
+				AnnounceTTS(C_Spell.GetSpellName(spellId), "important")
+			end
+		end
+	end
+	return impSlot
+end
+
 local function OnAuraDataChanged()
 	if paused then
 		return
@@ -238,6 +287,7 @@ local function OnAuraDataChanged()
 
 	wipe(currentImportantAuras)
 	wipe(currentDefensiveAuras)
+	wipe(currentEcdAuras)
 
 	-- Process arena watchers
 	if instanceType == "arena" then
@@ -255,6 +305,10 @@ local function OnAuraDataChanged()
 				splitBars,
 				disabledSpells
 			)
+		end
+		-- Also show ECD-predicted spells (covers offensive CDs that HELPFUL|IMPORTANT misses).
+		if ecdModule then
+			impSlot = ProcessEcdTrackedAuras(impSlot, iconsEnabled, iconsGlow, iconsReverse, colorByClass, showTooltips, disabledSpells)
 		end
 	end
 
@@ -302,7 +356,7 @@ local function OnAuraDataChanged()
 	end
 
 	-- Check if we have alerts for sound playback
-	hasImportantAlerts = next(currentImportantAuras) ~= nil
+	hasImportantAlerts = next(currentImportantAuras) ~= nil or next(currentEcdAuras) ~= nil
 	hasDefensiveAlerts = next(currentDefensiveAuras) ~= nil
 
 	-- Play sound only when transitioning from no alerts to having alerts for each type
@@ -321,6 +375,7 @@ local function OnAuraDataChanged()
 	-- (which will be wiped at the top of the next call)
 	previousImportantAuras, currentImportantAuras = currentImportantAuras, previousImportantAuras
 	previousDefensiveAuras, currentDefensiveAuras = currentDefensiveAuras, previousDefensiveAuras
+	previousEcdAuras, currentEcdAuras = currentEcdAuras, previousEcdAuras
 
 	-- If icons are disabled, keep sounds/TTS logic but don't show anything.
 	if not iconsEnabled then
@@ -408,6 +463,8 @@ local function OnMatchStateChanged()
 	hadDefensiveAlerts = false
 	previousImportantAuras = {}
 	previousDefensiveAuras = {}
+	previousEcdAuras = {}
+	currentEcdAuras  = {}
 end
 
 local function RefreshTestAlerts()
@@ -651,6 +708,8 @@ local function DisableWatchers()
 	hadDefensiveAlerts = false
 	previousImportantAuras = {}
 	previousDefensiveAuras = {}
+	previousEcdAuras = {}
+	currentEcdAuras  = {}
 end
 
 local function EnableDisable()
@@ -883,6 +942,12 @@ function M:Init()
 
 	InitArenaWatchers()
 	InitTargetFocusWatchers()
+
+	-- ECD loads after AlertsModule in the TOC, so the reference is available at Init time.
+	ecdModule = addon.Modules.EnemyCooldowns and addon.Modules.EnemyCooldowns.Module
+	if ecdModule then
+		ecdModule:RegisterAlertCallback(ScheduleAuraDataUpdate)
+	end
 
 	eventsFrame = CreateFrame("Frame")
 	eventsFrame:RegisterEvent("PVP_MATCH_STATE_CHANGED")
